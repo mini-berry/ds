@@ -1,6 +1,7 @@
 import math
 import cv2
 import numpy as np
+import copy
 
 white_lower = np.array([200, 200, 200], dtype="uint8")
 white_upper = np.array([255, 255, 255], dtype="uint8")
@@ -9,9 +10,110 @@ red_upper = np.array([100, 100, 255], dtype="uint8")
 black_lower = np.array([0, 0, 0], dtype="uint8")
 black_upper = np.array([50, 50, 50], dtype="uint8")
 
+symbols = {0: ' ', 1: 'O', 2: 'X'}
+opponent, player = 1, 2
+
+
+def is_moves_left(board):
+    for row in board:
+        if 0 in row:
+            return True
+    return False
+
+# Evaluate the board
+
+
+def iswin(board):
+    for row in range(3):
+        if board[row][0] == board[row][1] == board[row][2] != 0:
+            return True
+
+    for col in range(3):
+        if board[0][col] == board[1][col] == board[2][col] != 0:
+            return True
+
+    if board[0][0] == board[1][1] == board[2][2] != 0:
+        return True
+
+    if board[0][2] == board[1][1] == board[2][0] != 0:
+        return True
+
+
+def evaluate(board):
+    for row in range(3):
+        if board[row][0] == board[row][1] == board[row][2]:
+            if board[row][0] == player:
+                return 10
+            elif board[row][0] == opponent:
+                return -10
+
+    for col in range(3):
+        if board[0][col] == board[1][col] == board[2][col]:
+            if board[0][col] == player:
+                return 10
+            elif board[0][col] == opponent:
+                return -10
+
+    if board[0][0] == board[1][1] == board[2][2]:
+        if board[0][0] == player:
+            return 10
+        elif board[0][0] == opponent:
+            return -10
+
+    if board[0][2] == board[1][1] == board[2][0]:
+        if board[0][2] == player:
+            return 10
+        elif board[0][2] == opponent:
+            return -10
+
+    return 0
+
+# Minimax function
+
+
+def minimax(board, depth, is_max):
+    score = evaluate(board)
+
+    if score == 10:
+        return score - depth
+    if score == -10:
+        return score + depth
+    if not is_moves_left(board):
+        return 0
+
+    if is_max:
+        best = -math.inf
+        for i in range(3):
+            for j in range(3):
+                if board[i][j] == 0:
+                    board[i][j] = player
+                    best = max(best, minimax(board, depth + 1, not is_max))
+                    board[i][j] = 0
+        return best
+    else:
+        best = math.inf
+        for i in range(3):
+            for j in range(3):
+                if board[i][j] == 0:
+                    board[i][j] = opponent
+                    best = min(best, minimax(board, depth + 1, not is_max))
+                    board[i][j] = 0
+        return best
+
 
 def find_best_move(board):
-    print(1)
+    best_val = -math.inf
+    best_move = (-1, -1)
+    for i in range(3):
+        for j in range(3):
+            if board[i][j] == 0:
+                board[i][j] = player
+                move_val = minimax(board, 0, False)
+                board[i][j] = 0
+                if move_val > best_val:
+                    best_move = (i, j)
+                    best_val = move_val
+    return best_move
 
 
 def farthest_points_in_quadrants(points):
@@ -48,17 +150,16 @@ def farthest_points_in_quadrants(points):
 
 
 def print_board(board):
-    symbols = {0: ' ', 1: 'O', 2: 'X'}
-    print("y -------------")
-    i = 3
+    print("    1   2   3")  # 输出列号
+    print("  -------------")
+    i = 1
     for row in board:
         print(i, end=" ")  # 输出行号
-        i -= 1
+        i += 1
         print("|", end="")
         for cell in row:
             print(f" {symbols[cell]} |", end="")
         print("\n  -------------")
-    print("x   1   2   3")  # 输出列号
 
 
 def rotate_clockwise(x, y, angle):
@@ -165,33 +266,96 @@ def get_visionboard(img):
 
 def movechess(x, y, a, b):
     print("从" + str(x)+" "+str(y)+"移动棋子到" + str(a)+" "+str(b))
+    print("命令", (x)*3+y, (a)*3+b)
 
 
-def compareboard(oldboard, newboard):
-    print(1)
+def compareboard(board1, board2):
+    ob = copy.deepcopy(board1)
+    nb = copy.deepcopy(board2)
+    for i in range(len(nb)):
+        for j in range(len(nb[i])):
+            if nb[i][j] == 1:
+                nb[i][j] = 0
+    for i in range(len(ob)):
+        for j in range(len(ob[i])):
+            if ob[i][j] == 1:
+                ob[i][j] = 0
 
-
-    # 0: ' ', 1: 'O', 2: 'X'
-if __name__ == "__main__":
-    img = cv2.imread("v.jpg")
-
-    board = get_visionboard(img)
-    print(board)
-    print("获得当前数据，如下")
-    if board:
-        print_board(board)
-    board = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-    print_board(board)
-    # 找到玩家1（黑棋）的最佳落子点
-    best_move = find_best_move(board)
-    if best_move:
-        print(f"玩家1（黑棋）的最佳落子点是：第 {3-best_move[0]} 行，第 {3-best_move[1]} 列")
-        # 执行落子
-        movechess(1, 2, 3-best_move[0], 3-best_move[1])
-        board[best_move[0]][best_move[1]] = 2
-        print_board(board)
+    if ob == nb:
+        return -1, -1, -1, -1
     else:
-        print("没有可用的落子点。")
+        print("移动前的棋盘")
+        a = -1
+        b = -1
+        c = -1
+        d = -1
+        print(a, b, c, d)
+        for i in range(len(ob)):
+            for j in range(len(ob)):
+                if (ob[i][j] != nb[i][j]) and nb[i][j] == 2:
+                    a = i
+                    b = j
+                if (ob[i][j] != nb[i][j]) and ob[i][j] == 2:
+                    print(i, j)
+                    c = i
+                    d = j
+        print(a, b, c, d)
+        return a+1, b+1, c+1, d+1
 
-    # print("落子后的棋盘：")
-    # print_board(board)
+
+def movechessfrom(i, a, b):
+    print("从放置区"+str(i)+"移动到"+str(a)+" "+str(b))
+    print("命令", i+9, (a-1)*3+b-1)
+
+
+# 0: ' ', 1: 'O', 2: 'X'
+if __name__ == "__main__":
+    oldboard = None
+    i = 0
+    board = None
+    while True:
+        img = cv2.imread("v.jpg")
+        # 识别棋子
+        board = get_visionboard(img)
+        print("获得当前数据，如下")
+        board = [
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0]
+        ]
+        # 检测是否被移动，并移动棋子
+        if oldboard != None:
+            a, b, c, d = compareboard(oldboard, board)
+            if a == -1:
+                print("棋盘相同")
+            else:
+                print("棋盘不同")
+                movechess(a, b, c, d)
+                board[a-1][b-1] = 0
+                board[c-1][d-1] = 2
+                print("棋子移动完成,移动后的棋盘")
+            # 读取图像
+
+        if board != None:
+            print_board(board)
+        if not iswin(board):
+            # 找到玩家1（黑棋）的最佳落子点
+            best_move = find_best_move(board)
+            if best_move == (-1, -1):
+                print("没有可用的落子点。")
+                break
+            else:
+                print(
+                    f"玩家1（黑棋）的最佳落子点是：第 {1+best_move[0]} 行，第 {1+best_move[1]} 列，落子后")
+                movechessfrom(i, best_move[0]+1, best_move[1]+1)
+                i += 1
+                # 执行落子
+                board[best_move[0]][best_move[1]] = player
+                oldboard = board
+                print_board(board)
+                if iswin(board):
+                    print("游戏结束")
+                    break
+        else:
+            print("游戏结束")
+            break
