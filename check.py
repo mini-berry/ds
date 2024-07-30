@@ -8,7 +8,7 @@ white_upper = np.array([255, 255, 255], dtype="uint8")
 red_lower = np.array([0, 0, 100], dtype="uint8")
 red_upper = np.array([100, 100, 255], dtype="uint8")
 black_lower = np.array([0, 0, 0], dtype="uint8")
-black_upper = np.array([50, 50, 50], dtype="uint8")
+black_upper = np.array([40, 40, 40], dtype="uint8")
 
 symbols = {0: ' ', 1: 'O', 2: 'X'}
 opponent, player = 1, 2
@@ -19,8 +19,6 @@ def is_moves_left(board):
         if 0 in row:
             return True
     return False
-
-# Evaluate the board
 
 
 def iswin(board):
@@ -67,8 +65,6 @@ def evaluate(board):
             return -10
 
     return 0
-
-# Minimax function
 
 
 def minimax(board, depth, is_max):
@@ -170,6 +166,44 @@ def rotate_clockwise(x, y, angle):
     return x_new, y_new
 
 
+def rotationdetect(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, binary = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+
+    kernel = np.ones((5, 5), np.uint8)
+    binary = cv2.dilate(binary, kernel, iterations=3)
+    binary = cv2.erode(binary, kernel, iterations=15)
+
+    edges = cv2.Canny(binary, 50, 150, apertureSize=3)
+    contours, hierarchy = cv2.findContours(
+        edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if len(contours) > 0:
+        hierarchy = hierarchy[0]
+        no_parent_contours = [contours[i]
+                              for i in range(len(contours)) if hierarchy[i][0] == -1]
+        contour = no_parent_contours[0]
+
+        epsilon = 0.02 * cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon, True)
+        approx = approx.reshape(-1, 2)
+
+        approx = np.array(
+            list(map(lambda p: [p[0] - img.shape[1]/2, p[1] - img.shape[0]/2], approx)))
+
+        approx = farthest_points_in_quadrants(approx)
+        if (len(approx) == 4):
+            approx = np.array(list(approx.values()))
+            approx = np.array(
+                list(map(lambda p: [p[0] + img.shape[1]/2, p[1] + img.shape[0]/2], approx)))
+            return int(math.atan((approx[3][1]-approx[0][1]) /
+                                 (approx[3][0]-approx[0][0]))/math.pi*180)
+        else:
+            return None
+    else:
+        return None
+
+
 def get_visionboard(img):
     board = [
         [0, 0, 0],
@@ -177,33 +211,39 @@ def get_visionboard(img):
         [0, 0, 0]
     ]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+    _, binary = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
 
     kernel = np.ones((5, 5), np.uint8)
-    binary = cv2.dilate(binary, kernel, iterations=5)
+    binary = cv2.dilate(binary, kernel, iterations=3)
     binary = cv2.erode(binary, kernel, iterations=15)
 
     edges = cv2.Canny(binary, 50, 150, apertureSize=3)
     contours, hierarchy = cv2.findContours(
         edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
     if len(contours) > 0:
         hierarchy = hierarchy[0]
         no_parent_contours = [contours[i]
                               for i in range(len(contours)) if hierarchy[i][0] == -1]
         contour = no_parent_contours[0]
+
         epsilon = 0.02 * cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, epsilon, True)
         approx = approx.reshape(-1, 2)
+
         approx = np.array(
             list(map(lambda p: [p[0] - img.shape[1]/2, p[1] - img.shape[0]/2], approx)))
 
         approx = farthest_points_in_quadrants(approx)
-        approx = np.array(list(approx.values()))
-        approx = np.array(
-            list(map(lambda p: [p[0] + img.shape[1]/2, p[1] + img.shape[0]/2], approx)))
-
+        if (len(approx) == 4):
+            approx = np.array(list(approx.values()))
+            approx = np.array(
+                list(map(lambda p: [p[0] + img.shape[1]/2, p[1] + img.shape[0]/2], approx)))
+        else:
+            return None
         size = 900
         radius = 60
+
         if len(approx) == 4:
 
             # 排序确定透视变换后的目标点
@@ -257,21 +297,26 @@ def get_visionboard(img):
                     dominant_color = max(color_count, key=color_count.get)
 
                     board[i][j] = int(dominant_color)
-            cv2.imwrite("ans.jpg", img)
-        return board
+                    cv2.imwrite("ans.jpg", img)
+            return board
+        else:
+            return None
     else:
         return None
     # return board
 
 
-def movechess(x, y, a, b):
-    print("从" + str(x)+" "+str(y)+"移动棋子到" + str(a)+" "+str(b))
-    print("命令", (x)*3+y, (a)*3+b)
+def movechess(a, b, c, d):
+    print("从", a, b, "移动棋子到", c, d)
+    print("命令", c*3+d-3-1, a*3+b-3-1)
+    cmd = ((c*3+d-3-1) & 0xFF) << 4
+    cmd = cmd | ((a*3+b-3-1) & 0xFF)
+    print(f"0x{cmd:02X}")
 
 
-def compareboard(board1, board2):
-    ob = copy.deepcopy(board1)
-    nb = copy.deepcopy(board2)
+def compareboard(oldboard, newboard):
+    ob = copy.deepcopy(oldboard)
+    nb = copy.deepcopy(newboard)
     for i in range(len(nb)):
         for j in range(len(nb[i])):
             if nb[i][j] == 1:
@@ -280,82 +325,121 @@ def compareboard(board1, board2):
         for j in range(len(ob[i])):
             if ob[i][j] == 1:
                 ob[i][j] = 0
-
     if ob == nb:
         return -1, -1, -1, -1
     else:
-        print("移动前的棋盘")
         a = -1
         b = -1
         c = -1
         d = -1
-        print(a, b, c, d)
         for i in range(len(ob)):
             for j in range(len(ob)):
                 if (ob[i][j] != nb[i][j]) and nb[i][j] == 2:
                     a = i
                     b = j
                 if (ob[i][j] != nb[i][j]) and ob[i][j] == 2:
-                    print(i, j)
                     c = i
                     d = j
-        print(a, b, c, d)
         return a+1, b+1, c+1, d+1
 
 
 def movechessfrom(i, a, b):
     print("从放置区"+str(i)+"移动到"+str(a)+" "+str(b))
-    print("命令", i+9, (a-1)*3+b-1)
+    print("命令", (a-1)*3+b-1, i+9)
+    cmd = (((a-1)*3+b-1) & 0xFF) << 4
+    cmd = cmd | (i+9)
+    print(f"0x{cmd:02X}")
 
 
-# 0: ' ', 1: 'O', 2: 'X'
-if __name__ == "__main__":
+def rotationmode():
+    angle = None
+    while True:
+        img = cv2.imread("v.jpg")
+        angle = rotationdetect(img)
+        if angle != None and angle >= 0 and angle <= 90:
+            break
+        else:
+            continue
+    angle += 45
+    # 测试输出
+    # angle = 0
+    print("角度为", angle)
+    angle = angle & 0xFF
+    angle = angle | (1 << 7)
+    print(f"0x{angle:02X}")
+
+
+def game():
     oldboard = None
     i = 0
     board = None
+
+    # # 下棋测试
+    # board = [
+    #     [0, 0, 0],
+    #     [0, 1, 0],
+    #     [0, 0, 0]
+    # ]
+
     while True:
         img = cv2.imread("v.jpg")
         # 识别棋子
         board = get_visionboard(img)
-        print("获得当前数据，如下")
-        board = [
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0]
-        ]
-        # 检测是否被移动，并移动棋子
-        if oldboard != None:
-            a, b, c, d = compareboard(oldboard, board)
-            if a == -1:
-                print("棋盘相同")
-            else:
-                print("棋盘不同")
-                movechess(a, b, c, d)
-                board[a-1][b-1] = 0
-                board[c-1][d-1] = 2
-                print("棋子移动完成,移动后的棋盘")
-            # 读取图像
 
+        print("获得当前数据，如下")
         if board != None:
             print_board(board)
-        if not iswin(board):
-            # 找到玩家1（黑棋）的最佳落子点
-            best_move = find_best_move(board)
-            if best_move == (-1, -1):
-                print("没有可用的落子点。")
-                break
-            else:
-                print(
-                    f"玩家1（黑棋）的最佳落子点是：第 {1+best_move[0]} 行，第 {1+best_move[1]} 列，落子后")
-                movechessfrom(i, best_move[0]+1, best_move[1]+1)
-                i += 1
-                # 执行落子
-                board[best_move[0]][best_move[1]] = player
-                oldboard = board
-                print_board(board)
-                if iswin(board):
-                    print("游戏结束")
+            # 检测是否被移动，并移动棋子
+            if oldboard != None:
+                a, b, c, d = compareboard(oldboard, board)
+                if a == -1:
+                    print("无篡改")
+                else:
+                    print("棋盘被篡改")
+                    movechess(a, b, c, d)
+                    board[a-1][b-1] = 0
+                    board[c-1][d-1] = 2
+                    print("棋子移动完成,移动后的棋盘")
+                    print_board(board)
+                # 读取图像
+
+            if not iswin(board):
+                # 找到玩家1（黑棋）的最佳落子点
+                best_move = find_best_move(board)
+                if best_move == (-1, -1):
+                    print("没有可用的落子点。")
                     break
+                else:
+                    print(
+                        f"玩家1（黑棋）的最佳落子点是：第 {1+best_move[0]} 行，第 {1+best_move[1]} 列，落子后")
+                    movechessfrom(i, best_move[0]+1, best_move[1]+1)
+                    i += 1
+                    # 执行落子
+                    board[best_move[0]][best_move[1]] = player
+                    oldboard = board
+                    print_board(board)
+
+                    # # 篡改测试
+                    # board = [
+                    #     [0, 0, 2],
+                    #     [0, 1, 1],
+                    #     [0, 0, 0]
+                    # ]
+                    # print("篡改后的棋盘")
+                    # print_board(board)
+
+                    if iswin(board):
+                        print("游戏结束")
+                        break
+            else:
+                print("游戏结束")
+                break
+            print("**************************")
         else:
-            print("游戏结束")
-            break
+            continue
+
+
+# 0: ' ', 1: 'O', 2: 'X'
+if __name__ == "__main__":
+    rotationmode()
+    game()
