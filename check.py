@@ -307,11 +307,8 @@ def get_visionboard(img):
 
 
 def movechess(a, b, c, d):
-    print("从", a, b, "移动棋子到", c, d)
-    print("命令", c*3+d-3-1, a*3+b-3-1)
-    cmd = ((c*3+d-3-1) & 0xFF) << 4
-    cmd = cmd | ((a*3+b-3-1) & 0xFF)
-    print(f"0x{cmd:02X}")
+    print("从", a, b, "移动棋子到", c, d, "(", (a-1)*3+(b-1), "->", (c-1)*3+(d-1), ")")
+    print(f"0x{(((a-1)*3+(b-1))*14+(c-1)*3+(d-1)):02X}")
 
 
 def compareboard(oldboard, newboard):
@@ -344,11 +341,8 @@ def compareboard(oldboard, newboard):
 
 
 def movechessfrom(i, a, b):
-    print("从放置区"+str(i)+"移动到"+str(a)+" "+str(b))
-    print("命令", (a-1)*3+b-1, i+9)
-    cmd = (((a-1)*3+b-1) & 0xFF) << 4
-    cmd = cmd | (i+9)
-    print(f"0x{cmd:02X}")
+    print("从放置区", i, "移动到", a, " ", b, "(", i+9, "->", (a-1)*3+(b-1),  ")")
+    print(f"0x{(((a-1)*3+(b-1))*14+i+9):02X}")
 
 
 def rotationmode():
@@ -380,7 +374,7 @@ def game():
     #     [0, 1, 0],
     #     [0, 0, 0]
     # ]
-
+    movechess(2, 2, 1, 1)
     while True:
         img = cv2.imread("v.jpg")
         # 识别棋子
@@ -442,4 +436,5 @@ def game():
 # 0: ' ', 1: 'O', 2: 'X'
 if __name__ == "__main__":
     rotationmode()
+    print("**************************")
     game()
