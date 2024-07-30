@@ -6,7 +6,7 @@ import serial
 
 portstm32 = "/dev/ttyUSB0"
 portdisplay = "/dev/ttyUSB1"
-portdisplay = "/dev/ttyUSB2"
+portstm32_2 = "/dev/ttyUSB2"
 
 white_lower = np.array([200, 200, 200], dtype="uint8")
 white_upper = np.array([255, 255, 255], dtype="uint8")
