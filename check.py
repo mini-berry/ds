@@ -2,6 +2,11 @@ import math
 import cv2
 import numpy as np
 import copy
+import serial
+
+portstm32 = "/dev/ttyUSB0"
+portdisplay = "/dev/ttyUSB1"
+portdisplay = "/dev/ttyUSB2"
 
 white_lower = np.array([200, 200, 200], dtype="uint8")
 white_upper = np.array([255, 255, 255], dtype="uint8")
@@ -308,7 +313,9 @@ def get_visionboard(img):
 
 def movechess(a, b, c, d):
     print("从", a, b, "移动棋子到", c, d, "(", (a-1)*3+(b-1), "->", (c-1)*3+(d-1), ")")
-    print(f"0x{(((a-1)*3+(b-1))*14+(c-1)*3+(d-1)):02X}")
+    print("命令", f"0x{(((a-1)*3+(b-1))*14+(c-1)*3+(d-1)):02X}")
+    serstm32.write((((a-1)*3+(b-1))*14+(c-1)*3+(d-1)
+                    ).to_bytes(1, byteorder='big'))
 
 
 def compareboard(oldboard, newboard):
@@ -343,6 +350,15 @@ def compareboard(oldboard, newboard):
 def movechessfrom(i, a, b):
     print("从放置区", i, "移动到", a, " ", b, "(", i+9, "->", (a-1)*3+(b-1),  ")")
     print(f"0x{(((a-1)*3+(b-1))*14+i+9):02X}")
+    serstm32.write((((a-1)*3+(b-1))*14+i+9).to_bytes(1, byteorder='big'))
+
+
+def movechessfrom4(cmd):
+    print("从放置区", int(cmd/9), "移动到", int((cmd % 9)/3)+1, " ", cmd %
+          3+1, "(", int(cmd/9), "->", cmd % 9,  ")")
+
+    print(f"0x{cmd:02X}")
+    serstm32_2.write(cmd.to_bytes(1, byteorder='big'))
 
 
 def rotationmode():
@@ -360,7 +376,8 @@ def rotationmode():
     print("角度为", angle)
     angle = angle & 0xFF
     angle = angle | (1 << 7)
-    print(f"0x{angle:02X}")
+    print("命令", f"0x{angle:02X}")
+    serstm32.write(angle.to_bytes(1, byteorder='big'))
 
 
 def game():
@@ -435,6 +452,69 @@ def game():
 
 # 0: ' ', 1: 'O', 2: 'X'
 if __name__ == "__main__":
-    rotationmode()
-    print("**************************")
-    game()
+
+    serdisplay = serial.Serial(port=portdisplay,
+                               baudrate=115200,
+                               parity=serial.PARITY_NONE,
+                               stopbits=serial.STOPBITS_ONE,
+                               bytesize=serial.EIGHTBITS,
+                               timeout=1)
+    if not serdisplay.isOpen():
+        print("屏幕串口打开失败")
+        exit(0)
+
+    serstm32 = serial.Serial(port=portstm32,
+                             baudrate=115200,
+                             parity=serial.PARITY_NONE,
+                             bytesize=serial.EIGHTBITS,
+                             timeout=20)
+    if not serstm32.isOpen():
+        print("32串口打开失败")
+        exit(0)
+
+    serstm32_2 = serial.Serial(port=portstm32_2,
+                               baudrate=115200,
+                               parity=serial.PARITY_NONE,
+                               bytesize=serial.EIGHTBITS,
+                               timeout=20)
+    if not serstm32_2.isOpen():
+        print("32串口2打开失败")
+        exit(0)
+
+    while (1):
+        if serdisplay.in_waiting > 0:
+            cmd = serdisplay.read(1)
+            print("收到指令", f"0x{cmd[0]:02X}")
+            # 游戏模式
+            if cmd == b'\x5A':
+                print("进入游戏模式")
+                rotationmode()
+                game()
+            # 移动一颗
+            elif cmd == b'\x5B':
+                # 自己写分支，填入起始位置
+                print("移动黑棋0到中心", end='')
+                movechessfrom(0, 2, 2)
+            elif cmd == b'\x5C':
+                # 自己写分支，填入起始位置
+                print("移动黑棋1到中心")
+                movechessfrom(1, 2, 2)
+            elif cmd == b'\x5D':
+                # 自己写分支，填入起始位置
+                print("移动黑棋2到中心")
+                movechessfrom(2, 2, 2)
+            elif cmd == b'\x5E':
+                # 自己写分支，填入起始位置
+                print("移动黑棋3到中心")
+                movechessfrom(3, 2, 2)
+            elif cmd == b'\x5F':
+                # 自己写分支，填入起始位置
+                print("移动黑棋4到中心")
+                movechessfrom(4, 2, 2)
+            else:
+                # 移动制定的四个棋子
+                print("移动4棋子到指定位置")
+                cmd = cmd[0]
+                movechessfrom4(cmd)
+
+            print("**************************")
