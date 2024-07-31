@@ -19,6 +19,18 @@ symbols = {0: ' ', 1: 'O', 2: 'X'}
 opponent, player = 1, 2
 
 
+def undistort_image(img):
+    # 定义相机内参矩阵和畸变系数
+    camera_matrix = np.array([[642.230498165700, 0, 581.999704543728],
+                              [0, 643.146768792974, 326.934309960445],
+                              [0,  0,  1]])
+    distortion_coefficients = np.array(
+        [-0.343363556130765, 0.124022521658576, 0, 0, -0.020903803394041])
+    # 读取图像
+    undistort_img = cv2.undistort(img, camera_matrix, distortion_coefficients)
+    return undistort_img
+
+
 def is_moves_left(board):
     for row in board:
         if 0 in row:
@@ -302,7 +314,8 @@ def get_visionboard(img):
                     dominant_color = max(color_count, key=color_count.get)
 
                     board[i][j] = int(dominant_color)
-                    cv2.imwrite("ans.jpg", img)
+                    cv2.imshow("img", img)
+                    cv2.waitKey(1)
             return board
         else:
             return None
@@ -391,61 +404,65 @@ def game():
     #     [0, 1, 0],
     #     [0, 0, 0]
     # ]
-    movechess(2, 2, 1, 1)
+    # movechess(2, 2, 1, 1)
+
     while True:
-        img = cv2.imread("v.jpg")
-        # 识别棋子
-        board = get_visionboard(img)
+        ret, img = cap.read()
+        if ret and serdisplay.in_waiting > 0:
+            # img = cv2.imread("v.jpg")
+            # 识别棋子
+            board = get_visionboard(img)
 
-        print("获得当前数据，如下")
-        if board != None:
-            print_board(board)
-            # 检测是否被移动，并移动棋子
-            if oldboard != None:
-                a, b, c, d = compareboard(oldboard, board)
-                if a == -1:
-                    print("无篡改")
-                else:
-                    print("棋盘被篡改")
-                    movechess(a, b, c, d)
-                    board[a-1][b-1] = 0
-                    board[c-1][d-1] = 2
-                    print("棋子移动完成,移动后的棋盘")
-                    print_board(board)
-                # 读取图像
+            print("获得当前数据，如下")
+            if board != None:
+                print_board(board)
+                # 检测是否被移动，并移动棋子
+                if oldboard != None:
+                    a, b, c, d = compareboard(oldboard, board)
+                    if a == -1:
+                        print("无篡改")
+                    else:
+                        print("棋盘被篡改")
+                        movechess(a, b, c, d)
+                        board[a-1][b-1] = 0
+                        board[c-1][d-1] = 2
+                        print("棋子移动完成,移动后的棋盘")
+                        print_board(board)
 
-            if not iswin(board):
-                # 找到玩家1（黑棋）的最佳落子点
-                best_move = find_best_move(board)
-                if best_move == (-1, -1):
-                    print("没有可用的落子点。")
-                    break
-                else:
-                    print(
-                        f"玩家1（黑棋）的最佳落子点是：第 {1+best_move[0]} 行，第 {1+best_move[1]} 列，落子后")
-                    movechessfrom(i, best_move[0]+1, best_move[1]+1)
-                    i += 1
-                    # 执行落子
-                    board[best_move[0]][best_move[1]] = player
-                    oldboard = board
-                    print_board(board)
-
-                    # # 篡改测试
-                    # board = [
-                    #     [0, 0, 2],
-                    #     [0, 1, 1],
-                    #     [0, 0, 0]
-                    # ]
-                    # print("篡改后的棋盘")
-                    # print_board(board)
-
-                    if iswin(board):
-                        print("游戏结束")
+                if not iswin(board):
+                    # 找到玩家1（黑棋）的最佳落子点
+                    best_move = find_best_move(board)
+                    if best_move == (-1, -1):
+                        print("没有可用的落子点。")
                         break
+                    else:
+                        print(
+                            f"玩家1（黑棋）的最佳落子点是：第 {1+best_move[0]} 行，第 {1+best_move[1]} 列，落子后")
+                        movechessfrom(i, best_move[0]+1, best_move[1]+1)
+                        i += 1
+                        # 执行落子
+                        board[best_move[0]][best_move[1]] = player
+                        oldboard = board
+                        print_board(board)
+
+                        # # 篡改测试
+                        # board = [
+                        #     [0, 0, 2],
+                        #     [0, 1, 1],
+                        #     [0, 0, 0]
+                        # ]
+                        # print("篡改后的棋盘")
+                        # print_board(board)
+
+                        if iswin(board):
+                            print("游戏结束")
+                            break
+                else:
+                    print("游戏结束")
+                    break
+                print("**************************")
             else:
-                print("游戏结束")
-                break
-            print("**************************")
+                continue
         else:
             continue
 
@@ -463,22 +480,34 @@ if __name__ == "__main__":
         print("屏幕串口打开失败")
         exit(0)
 
-    serstm32 = serial.Serial(port=portstm32,
-                             baudrate=115200,
-                             parity=serial.PARITY_NONE,
-                             bytesize=serial.EIGHTBITS,
-                             timeout=20)
-    if not serstm32.isOpen():
-        print("32串口打开失败")
-        exit(0)
+    # 调试语句
+    serstm32_2 = serdisplay
+    serstm32 = serdisplay
 
-    serstm32_2 = serial.Serial(port=portstm32_2,
-                               baudrate=115200,
-                               parity=serial.PARITY_NONE,
-                               bytesize=serial.EIGHTBITS,
-                               timeout=20)
-    if not serstm32_2.isOpen():
-        print("32串口2打开失败")
+    # serstm32 = serial.Serial(port=portstm32,
+    #                          baudrate=115200,
+    #                          parity=serial.PARITY_NONE,
+    #                          bytesize=serial.EIGHTBITS,
+    #                          timeout=20)
+    # if not serstm32.isOpen():
+    #     print("32串口打开失败")
+    #     exit(0)
+
+    # serstm32_2 = serial.Serial(port=portstm32_2,
+    #                            baudrate=115200,
+    #                            parity=serial.PARITY_NONE,
+    #                            bytesize=serial.EIGHTBITS,
+    #                            timeout=20)
+    # if not serstm32_2.isOpen():
+    #     print("32串口2打开失败")
+    #     exit(0)
+
+    cap = cv2.VideoCapture(0)
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    if not cap.isOpened():
+        print("摄像头打开失败")
         exit(0)
 
     while (1):
