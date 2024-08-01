@@ -189,9 +189,10 @@ def rotationdetect():
     height, width = img.shape[:2]
     center_x = width // 2
     center_y = height // 2
-    start_x = center_x - 360
+    start_x = center_x - 330
+    end_x = center_x + 390
     start_y = center_y - 360
-    end_x = center_x + 360
+    
     end_y = center_y + 360
     img = img[start_y:end_y, start_x:end_x]
     if ret:
