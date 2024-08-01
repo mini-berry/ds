@@ -192,8 +192,8 @@ def rotationdetect():
     start_x = center_x - 330
     end_x = center_x + 390
     start_y = center_y - 360
-    
     end_y = center_y + 360
+
     img = img[start_y:end_y, start_x:end_x]
     if ret:
         # 将图片从 BGR 转换为 HSV 颜色空间
@@ -345,7 +345,6 @@ def get_visionboard(img):
             return None
     else:
         return None
-    # return board
 
 
 def movechess(a, b, c, d):
