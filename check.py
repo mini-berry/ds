@@ -7,6 +7,7 @@ import serial
 portstm32 = "/dev/ttyUSB0"
 portdisplay = "/dev/ttyUSB1"
 portstm32_2 = "/dev/ttyUSB2"
+testmode = True
 
 white_lower = np.array([200, 200, 200], dtype="uint8")
 white_upper = np.array([255, 255, 255], dtype="uint8")
@@ -183,42 +184,67 @@ def rotate_clockwise(x, y, angle):
     return x_new, y_new
 
 
-def rotationdetect(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+def rotationdetect():
+    ret, img = cap.read()
+    height, width = img.shape[:2]
+    center_x = width // 2
+    center_y = height // 2
+    start_x = center_x - 360
+    start_y = center_y - 360
+    end_x = center_x + 360
+    end_y = center_y + 360
+    img = img[start_y:end_y, start_x:end_x]
+    if ret:
+        # 将图片从 BGR 转换为 HSV 颜色空间
+        hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        # 创建红色范围的掩码
+        red_lower = np.array([0, 80, 80], dtype="uint8")
+        red_upper = np.array([255, 255, 255], dtype="uint8")
+        mask = cv2.inRange(hsv_image, red_lower, red_upper)
+        # 将掩码应用到原始图像
+        img[mask > 0] = [0, 0, 0]
 
-    kernel = np.ones((5, 5), np.uint8)
-    binary = cv2.dilate(binary, kernel, iterations=3)
-    binary = cv2.erode(binary, kernel, iterations=15)
+        binary = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        _, binary = cv2.threshold(binary, 120, 255, cv2.THRESH_BINARY)
 
-    edges = cv2.Canny(binary, 50, 150, apertureSize=3)
-    contours, hierarchy = cv2.findContours(
-        edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        kernel = np.ones((5, 5), np.uint8)
+        binary = cv2.dilate(binary, kernel, iterations=3)
 
-    if len(contours) > 0:
-        hierarchy = hierarchy[0]
-        no_parent_contours = [contours[i]
-                              for i in range(len(contours)) if hierarchy[i][0] == -1]
-        contour = no_parent_contours[0]
+        cv2.imshow("img", binary)
+        cv2.waitKey(1)
 
-        epsilon = 0.02 * cv2.arcLength(contour, True)
-        approx = cv2.approxPolyDP(contour, epsilon, True)
-        approx = approx.reshape(-1, 2)
+        binary = cv2.bitwise_not(binary)
+        contours, hierarchy = cv2.findContours(
+            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        approx = np.array(
-            list(map(lambda p: [p[0] - img.shape[1]/2, p[1] - img.shape[0]/2], approx)))
+        max_area = 0
+        largest_contour = None
+        for i in range(len(contours)):
+            if hierarchy[0][i][0] == -1:
+                area = cv2.contourArea(contours[i])
+                if area > max_area:
+                    max_area = area
+                    largest_contour = contours[i]
 
-        approx = farthest_points_in_quadrants(approx)
-        if (len(approx) == 4):
-            approx = np.array(list(approx.values()))
+        if len(largest_contour) > 0:
+            epsilon = 0.02 * cv2.arcLength(largest_contour, True)
+            approx = cv2.approxPolyDP(largest_contour, epsilon, True)
+            approx = approx.reshape(-1, 2)
+
             approx = np.array(
-                list(map(lambda p: [p[0] + img.shape[1]/2, p[1] + img.shape[0]/2], approx)))
-            return int(math.atan((approx[3][1]-approx[0][1]) /
-                                 (approx[3][0]-approx[0][0]))/math.pi*180)
+                list(map(lambda p: [p[0] - img.shape[1]/2, p[1] - img.shape[0]/2], approx)))
+
+            approx = farthest_points_in_quadrants(approx)
+            if len(list(filter(lambda x: x is not None, approx.values()))) == 4:
+                approx = np.array(list(approx.values()))
+                approx = np.array(
+                    list(map(lambda p: [p[0] + img.shape[1]/2, p[1] + img.shape[0]/2], approx)))
+                return int(math.atan((approx[3][1]-approx[0][1]) /
+                                     (approx[3][0]-approx[0][0]))/math.pi*180)
+            else:
+                return None
         else:
             return None
-    else:
-        return None
 
 
 def get_visionboard(img):
@@ -227,13 +253,15 @@ def get_visionboard(img):
         [0, 0, 0],
         [0, 0, 0]
     ]
+
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+    _, binary = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
 
     kernel = np.ones((5, 5), np.uint8)
     binary = cv2.dilate(binary, kernel, iterations=3)
     binary = cv2.erode(binary, kernel, iterations=15)
-
+    cv2.imshow("img", binary)
+    cv2.waitKey(1)
     edges = cv2.Canny(binary, 50, 150, apertureSize=3)
     contours, hierarchy = cv2.findContours(
         edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -252,7 +280,7 @@ def get_visionboard(img):
             list(map(lambda p: [p[0] - img.shape[1]/2, p[1] - img.shape[0]/2], approx)))
 
         approx = farthest_points_in_quadrants(approx)
-        if (len(approx) == 4):
+        if len(list(filter(lambda x: x is not None, approx.values()))) == 4:
             approx = np.array(list(approx.values()))
             approx = np.array(
                 list(map(lambda p: [p[0] + img.shape[1]/2, p[1] + img.shape[0]/2], approx)))
@@ -261,7 +289,7 @@ def get_visionboard(img):
         size = 900
         radius = 60
 
-        if len(approx) == 4:
+        if approx.shape == (4, 2):
 
             # 排序确定透视变换后的目标点
             rect = np.zeros((4, 2), dtype="float32")
@@ -314,8 +342,6 @@ def get_visionboard(img):
                     dominant_color = max(color_count, key=color_count.get)
 
                     board[i][j] = int(dominant_color)
-                    cv2.imshow("img", img)
-                    cv2.waitKey(1)
             return board
         else:
             return None
@@ -334,6 +360,11 @@ def movechess(a, b, c, d):
 def compareboard(oldboard, newboard):
     ob = copy.deepcopy(oldboard)
     nb = copy.deepcopy(newboard)
+    if nb == [[0, 0, 0],
+              [0, 0, 0],
+              [0, 0, 0]
+              ]:
+        return -1, -1, -1, -1
     for i in range(len(nb)):
         for j in range(len(nb[i])):
             if nb[i][j] == 1:
@@ -377,9 +408,10 @@ def movechessfrom4(cmd):
 def rotationmode():
     angle = None
     while True:
-        img = cv2.imread("v.jpg")
-        angle = rotationdetect(img)
+        # img = cv2.imread("v.jpg")
+        angle = rotationdetect()
         if angle != None and angle >= 0 and angle <= 90:
+            # pass
             break
         else:
             continue
@@ -408,7 +440,24 @@ def game():
 
     while True:
         ret, img = cap.read()
-        if ret and serdisplay.in_waiting > 0:
+        height, width = img.shape[:2]
+        center_x = width // 2
+        center_y = height // 2
+        start_x = center_x - 360
+        start_y = center_y - 360
+        end_x = center_x + 360
+        end_y = center_y + 360
+        img = img[start_y:end_y, start_x:end_x]
+        img[:, ::-1]
+        # if ret and serdisplay.in_waiting > 0:
+        # 暂时关闭串口呢
+        if 1:
+            # 将图片从 BGR 转换为 HSV 颜色空间
+            hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            # 创建颜色范围的掩码
+            mask = cv2.inRange(hsv_image, red_lower, red_upper)
+            # 将掩码应用到原始图像
+            img[mask == 0] = [0, 0, 0]
             # img = cv2.imread("v.jpg")
             # 识别棋子
             board = get_visionboard(img)
@@ -419,7 +468,7 @@ def game():
                 # 检测是否被移动，并移动棋子
                 if oldboard != None:
                     a, b, c, d = compareboard(oldboard, board)
-                    if a == -1:
+                    if a <= 0 or b <= 0 or c < 0 or d < 0:
                         print("无篡改")
                     else:
                         print("棋盘被篡改")
@@ -462,7 +511,7 @@ def game():
                     break
                 print("**************************")
             else:
-                continue
+                pass
         else:
             continue
 
@@ -470,37 +519,41 @@ def game():
 # 0: ' ', 1: 'O', 2: 'X'
 if __name__ == "__main__":
 
-    serdisplay = serial.Serial(port=portdisplay,
-                               baudrate=115200,
-                               parity=serial.PARITY_NONE,
-                               stopbits=serial.STOPBITS_ONE,
-                               bytesize=serial.EIGHTBITS,
-                               timeout=1)
-    if not serdisplay.isOpen():
-        print("屏幕串口打开失败")
+    serstm32_2 = None
+    serdisplay = None
+
+    serstm32 = serial.Serial(port=portstm32,
+                             baudrate=115200,
+                             parity=serial.PARITY_NONE,
+                             bytesize=serial.EIGHTBITS,
+                             timeout=20)
+    if not serstm32.isOpen():
+        print("32串口打开失败")
         exit(0)
-
     # 调试语句
-    serstm32_2 = serdisplay
-    serstm32 = serdisplay
 
-    # serstm32 = serial.Serial(port=portstm32,
-    #                          baudrate=115200,
-    #                          parity=serial.PARITY_NONE,
-    #                          bytesize=serial.EIGHTBITS,
-    #                          timeout=20)
-    # if not serstm32.isOpen():
-    #     print("32串口打开失败")
-    #     exit(0)
+    if testmode:
+        serstm32_2 = serstm32
+        serdisplay = serstm32
+    else:
+        serdisplay = serial.Serial(port=portdisplay,
+                                   baudrate=115200,
+                                   parity=serial.PARITY_NONE,
+                                   stopbits=serial.STOPBITS_ONE,
+                                   bytesize=serial.EIGHTBITS,
+                                   timeout=1)
+        if not serdisplay.isOpen():
+            print("屏幕串口打开失败")
+            exit(0)
 
-    # serstm32_2 = serial.Serial(port=portstm32_2,
-    #                            baudrate=115200,
-    #                            parity=serial.PARITY_NONE,
-    #                            bytesize=serial.EIGHTBITS,
-    #                            timeout=20)
-    # if not serstm32_2.isOpen():
-    #     print("32串口2打开失败")
-    #     exit(0)
+        serstm32_2 = serial.Serial(port=portstm32_2,
+                                   baudrate=115200,
+                                   parity=serial.PARITY_NONE,
+                                   bytesize=serial.EIGHTBITS,
+                                   timeout=20)
+        if not serstm32_2.isOpen():
+            print("32串口2打开失败")
+            exit(0)
 
     cap = cv2.VideoCapture(0)
 
