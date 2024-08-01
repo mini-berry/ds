@@ -11,8 +11,8 @@ testmode = True
 
 white_lower = np.array([200, 200, 200], dtype="uint8")
 white_upper = np.array([255, 255, 255], dtype="uint8")
-red_lower = np.array([0, 0, 100], dtype="uint8")
-red_upper = np.array([100, 100, 255], dtype="uint8")
+red_lower = np.array([0, 80, 80], dtype="uint8")
+red_upper = np.array([255, 255, 255], dtype="uint8")
 black_lower = np.array([0, 0, 0], dtype="uint8")
 black_upper = np.array([40, 40, 40], dtype="uint8")
 
@@ -197,9 +197,6 @@ def rotationdetect():
     if ret:
         # 将图片从 BGR 转换为 HSV 颜色空间
         hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        # 创建红色范围的掩码
-        red_lower = np.array([0, 80, 80], dtype="uint8")
-        red_upper = np.array([255, 255, 255], dtype="uint8")
         mask = cv2.inRange(hsv_image, red_lower, red_upper)
         # 将掩码应用到原始图像
         img[mask > 0] = [0, 0, 0]
